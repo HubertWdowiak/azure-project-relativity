@@ -26,7 +26,7 @@
           ]
         }
       ],
-      "ReplyUrls": "http://localhost:5000/getAToken"
+      "ReplyUrls": "https://azure-project-relativity.azurewebsites.net/getAToken"
     }
   ],
 

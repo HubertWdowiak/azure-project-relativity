@@ -184,7 +184,7 @@ Function ConfigureApplications
    $pythonwebappAppKey = $pw
    # create the application 
    $pythonwebappAadApplication = New-AzureADApplication -DisplayName "python-webapp" `
-                                                        -ReplyUrls "http://localhost:5000/getAToken" `
+                                                        -ReplyUrls "https://azure-project-relativity.azurewebsites.net/getAToken" `
                                                         -IdentifierUris "https://$tenantName/python-webapp" `
                                                         -AvailableToOtherTenants $True `
                                                         -PasswordCredentials $key `
