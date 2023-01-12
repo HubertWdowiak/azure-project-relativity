@@ -11,18 +11,7 @@ CLIENT_SECRET = "lIS8Q~x9FKlFM63hQ1CbWXdZ8_dMCvO8.Y0Ancbd" # Placeholder - for u
 #     raise ValueError("Need to define CLIENT_SECRET environment variable")
 
 AUTHORITY = "https://login.microsoftonline.com/02b063b5-c529-4148-824c-4db8b3d36d2c"  # For multi-tenant app
-# AUTHORITY = "https://login.microsoftonline.com/Enter_the_Tenant_Name_Here"
-
-REDIRECT_PATH = "/getAToken"  # Used for forming an absolute URL to your redirect URI.
-                              # The absolute URL must match the redirect URI you set
-                              # in the app's registration in the Azure portal.
-
-# You can find more Microsoft Graph API endpoints from Graph Explorer
-# https://developer.microsoft.com/en-us/graph/graph-explorer
+REDIRECT_PATH = "/getAToken"
 ENDPOINT = 'https://graph.microsoft.com/v1.0/users'  # This resource requires no admin consent
-
-# You can find the proper permission names from this document
-# https://docs.microsoft.com/en-us/graph/permissions-reference
 SCOPE = ["User.ReadBasic.All"]
-
-SESSION_TYPE = "filesystem"  # Specifies the token cache should be stored in server-side session
+SESSION_TYPE = "filesystem"
