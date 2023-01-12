@@ -13,11 +13,26 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+import logging
+from opencensus.ext.azure.log_exporter import AzureLogHandler
+
+logger = logging.getLogger(__name__)
+
+logger.addHandler(AzureLogHandler(
+    connection_string='InstrumentationKey=53cb6ec7-11ad-4eb7-b29a-75d260de8cdc;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/')
+)
 
 @app.route("/")
 def index():
     if not session.get("user"):
         return redirect(url_for("login"))
+
+    ###############
+    try:
+        result = 1 / 0  # generate a ZeroDivisionError
+    except Exception:
+        logger.exception('Captured an exception.', extra={'custom_dimensions': {'key_1': 'value_1', 'key_2': 'value_2'}})
+    ###############
     return render_template('index.html', user=session["user"], version=msal.__version__)
 
 
