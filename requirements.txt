@@ -16,6 +16,8 @@ msal>=1.7,<2
 opencensus==0.11.0
 opencensus-context==0.1.3
 opencensus-ext-azure==1.1.7
+psycopg2==2.9.5
+
 # cachelib==0.1  # Only need this if you are running Python 2
 # Note: This sample does NOT directly depend on cachelib.
 # It is an indirect dependency of flask-session.

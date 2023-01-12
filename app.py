@@ -1,9 +1,10 @@
-import uuid
+import msal
 import requests
 from flask import Flask, render_template, session, request, redirect, url_for
-from flask_session import Session
-import msal
+import logging
+from opencensus.ext.azure.log_exporter import AzureLogHandler, AzureEventHandler
 import app_config
+from flask_session import Session
 
 app = Flask(__name__)
 app.config.from_object(app_config)
@@ -13,14 +14,53 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-import logging
-from opencensus.ext.azure.log_exporter import AzureLogHandler
-
 logger = logging.getLogger(__name__)
-
 logger.addHandler(AzureLogHandler(
-    connection_string='InstrumentationKey=53cb6ec7-11ad-4eb7-b29a-75d260de8cdc;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/')
-)
+    connection_string='InstrumentationKey=53cb6ec7-11ad-4eb7-b29a-75d260de8cdc;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/'))
+
+import psycopg2
+from psycopg2 import pool
+
+# NOTE: fill in these variables for your own cluster
+host = "c.sg4b6c3796be05442f855b5f0f5f9158f7.postgres.database.azure.com"
+dbname = "citus"
+user = "citus"
+password = "nLDP8EvM!K7ksQX"
+sslmode = "require"
+
+# Build a connection string from the variables
+conn_string = "host={0} user={1} dbname={2} password={3} sslmode={4}".format(host, user, dbname, password, sslmode)
+
+postgreSQL_pool = psycopg2.pool.SimpleConnectionPool(1, 20,conn_string)
+if (postgreSQL_pool):
+    print("Connection pool created successfully")
+
+conn = postgreSQL_pool.getconn()
+cursor = conn.cursor()
+
+# Drop previous table of same name if one exists
+cursor.execute("DROP TABLE IF EXISTS pharmacy;")
+print("Finished dropping table (if existed)")
+
+# Create a table
+cursor.execute("CREATE TABLE pharmacy (pharmacy_id integer, pharmacy_name text, city text, state text, zip_code integer);")
+print("Finished creating table")
+
+# Create a index
+cursor.execute("CREATE INDEX idx_pharmacy_id ON pharmacy(pharmacy_id);")
+print("Finished creating index")
+
+# Insert some data into the table
+cursor.execute("INSERT INTO pharmacy  (pharmacy_id,pharmacy_name,city,state,zip_code) VALUES (%s, %s, %s, %s,%s);", (1,"Target","Sunnyvale","California",94001))
+cursor.execute("INSERT INTO pharmacy (pharmacy_id,pharmacy_name,city,state,zip_code) VALUES (%s, %s, %s, %s,%s);", (2,"CVS","San Francisco","California",94002))
+print("Inserted 2 rows of data")
+
+# Clean up
+conn.commit()
+cursor.close()
+conn.close()
+
+
 
 @app.route("/")
 def index():
@@ -31,7 +71,8 @@ def index():
     try:
         result = 1 / 0  # generate a ZeroDivisionError
     except Exception:
-        logger.exception('Captured an exception.', extra={'custom_dimensions': {'key_1': 'value_1', 'key_2': 'value_2'}})
+        logger.exception('Captured an exception.',
+                         extra={'custom_dimensions': {'key_1': 'value_1', 'key_2': 'value_2'}})
     ###############
     return render_template('index.html', user=session["user"], version=msal.__version__)
 
