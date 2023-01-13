@@ -1,8 +1,16 @@
+import logging
+import os
+
+import jinja2
 import msal
 import requests
 from flask import Flask, render_template, session, request, redirect, url_for
-import logging
-from opencensus.ext.azure.log_exporter import AzureLogHandler, AzureEventHandler
+from opencensus.ext.azure.log_exporter import AzureLogHandler
+from sqlalchemy import create_engine, ForeignKey, Column, Integer, Text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import URL
+from sqlalchemy.orm import relationship, declarative_base, sessionmaker
+
 import app_config
 from flask_session import Session
 
@@ -16,50 +24,63 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(AzureLogHandler(
-    connection_string='InstrumentationKey=53cb6ec7-11ad-4eb7-b29a-75d260de8cdc;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/'))
+    connection_string=os.environ.get('APPLICATIONINSIGHTS_CONNECTION_STRING')))
 
-import psycopg2
-from psycopg2 import pool
+url = URL.create(
+    drivername="postgresql",
+    username=os.environ.get("DB_USERNAME"),
+    password=os.environ.get("DB_PASSWORD"),
+    host=os.environ.get("DB_HOST"),
+    database=os.environ.get("DATABASE")
+)
 
-# NOTE: fill in these variables for your own cluster
-host = "c.sg4b6c3796be05442f855b5f0f5f9158f7.postgres.database.azure.com"
-dbname = "citus"
-user = "citus"
-password = "nLDP8EvM!K7ksQX"
-sslmode = "require"
+engine = create_engine(url, echo=True)
+connection = engine.connect()
+connection.execute("DROP SCHEMA public CASCADE;"
+                   "CREATE SCHEMA public;"
+                   "GRANT ALL ON SCHEMA public TO postgres;"
+                   "GRANT ALL ON SCHEMA public TO public;")
 
-# Build a connection string from the variables
-conn_string = "host={0} user={1} dbname={2} password={3} sslmode={4}".format(host, user, dbname, password, sslmode)
+Base = declarative_base()
 
-postgreSQL_pool = psycopg2.pool.SimpleConnectionPool(1, 20,conn_string)
-if (postgreSQL_pool):
-    print("Connection pool created successfully")
 
-conn = postgreSQL_pool.getconn()
-cursor = conn.cursor()
+class Author(Base):
+    __tablename__ = "authors"
+    id = Column(Text, primary_key=True)
+    nickname = Column(Text)
+    articles = relationship("Article")
+    reviews = relationship("Review")
 
-# Drop previous table of same name if one exists
-cursor.execute("DROP TABLE IF EXISTS pharmacy;")
-print("Finished dropping table (if existed)")
 
-# Create a table
-cursor.execute("CREATE TABLE pharmacy (pharmacy_id integer, pharmacy_name text, city text, state text, zip_code integer);")
-print("Finished creating table")
+class Article(Base):
+    __tablename__ = "articles"
+    id = Column(Integer, primary_key=True)
+    title = Column(Text)
+    content = Column(Text)
+    author_id = Column(Text, ForeignKey("authors.id"))
+    a_reviews = relationship("Review")
 
-# Create a index
-cursor.execute("CREATE INDEX idx_pharmacy_id ON pharmacy(pharmacy_id);")
-print("Finished creating index")
 
-# Insert some data into the table
-cursor.execute("INSERT INTO pharmacy  (pharmacy_id,pharmacy_name,city,state,zip_code) VALUES (%s, %s, %s, %s,%s);", (1,"Target","Sunnyvale","California",94001))
-cursor.execute("INSERT INTO pharmacy (pharmacy_id,pharmacy_name,city,state,zip_code) VALUES (%s, %s, %s, %s,%s);", (2,"CVS","San Francisco","California",94002))
-print("Inserted 2 rows of data")
+class Review(Base):
+    __tablename__ = "reviews"
+    id = Column(Integer, primary_key=True)
+    content = Column(Text)
+    author_id = Column(Text, ForeignKey("authors.id"))
+    article_id = Column(Integer, ForeignKey("articles.id"))
 
-# Clean up
-conn.commit()
-cursor.close()
-conn.close()
 
+Base.metadata.create_all(engine)
+session_maker = sessionmaker(bind=engine)
+sql_session = session_maker()
+
+
+def _build_auth_code_flow(authority=None, scopes=None):
+    return _build_msal_app(authority=authority).initiate_auth_code_flow(
+        scopes or [],
+        redirect_uri=url_for("authorized", _external=True))
+
+
+app.jinja_env.globals.update(_build_auth_code_flow=_build_auth_code_flow)
 
 
 @app.route("/")
@@ -67,20 +88,59 @@ def index():
     if not session.get("user"):
         return redirect(url_for("login"))
 
-    ###############
+    author = get_current_author()
+    articles = sql_session.query(Article, Author).filter(Article.author_id == Author.id).all()
+    return render_template('index.html', author=author, articles=articles)
+
+
+def get_current_author():
+    author = sql_session.query(Author).filter(Author.id == session.get('user')['tid']).first()
+    if not author:
+        stm = insert(Author).values(id=session.get('user')['tid'], nickname=session.get('user')['name'])
+        stm = stm.on_conflict_do_nothing(index_elements=['id'])
+        sql_session.execute(stm)
+        sql_session.commit()
+        author = sql_session.query(Author).filter(Author.id == session.get('user')['tid']).first()
+    return author
+
+
+@app.route("/article/<int:id>")
+def article(id):
+    content = sql_session.query(Article, Author).filter(Article.id == id).filter(Article.author_id == Author.id).first()
+    reviews = sql_session.query(Review, Author).filter(Author.id == Review.author_id).filter(
+        Review.article_id == id).all()
     try:
-        result = 1 / 0  # generate a ZeroDivisionError
-    except Exception:
-        logger.exception('Captured an exception.',
-                         extra={'custom_dimensions': {'key_1': 'value_1', 'key_2': 'value_2'}})
-    ###############
-    return render_template('index.html', user=session["user"], version=msal.__version__)
+        return render_template('article.html', article=content, reviews=reviews)
+    except jinja2.exceptions.UndefinedError as e:
+        logger.exception(e)
+        return redirect(url_for("index"))
+
+
+@app.route("/article/<int:id>", methods=['POST'])
+def add_comment(id):
+    sql_session.add(Review(article_id=id, author_id=session.get('user')['tid'], content=request.form['content']))
+    sql_session.commit()
+    return redirect(url_for("article", id=id))
+
+
+@app.route("/test")
+def test():
+    if not session.get("user"):
+        return redirect(url_for("login"))
+    return render_template("add_article.html")
+
+
+@app.route("/add_article", methods=['POST'])
+def add_article():
+    result = request.form
+    user_id = session.get('user')['tid']
+    sql_session.add(Article(content=result['content'], title=result['title'], author_id=user_id))
+    sql_session.commit()
+    return redirect(url_for("index"))
 
 
 @app.route("/login")
 def login():
-    # Technically we could use empty list [] as scopes to do just sign in,
-    # here we choose to also collect end user consent upfront
     session["flow"] = _build_auth_code_flow(scopes=app_config.SCOPE)
     return render_template("login.html", auth_url=session["flow"]["auth_uri"], version=msal.__version__)
 
@@ -95,15 +155,15 @@ def authorized():
             return render_template("auth_error.html", result=result)
         session["user"] = result.get("id_token_claims")
         _save_cache(cache)
-    except ValueError:  # Usually caused by CSRF
-        pass  # Simply ignore them
+    except ValueError:
+        pass
     return redirect(url_for("index"))
 
 
 @app.route("/logout")
 def logout():
-    session.clear()  # Wipe out user and its token cache from session
-    return redirect(  # Also logout from your tenant's web session
+    session.clear()
+    return redirect(
         app_config.AUTHORITY + "/oauth2/v2.0/logout" +
         "?post_logout_redirect_uri=" + url_for("index", _external=True))
 
@@ -153,8 +213,6 @@ def _get_token_from_cache(scope=None):
         _save_cache(cache)
         return result
 
-
-app.jinja_env.globals.update(_build_auth_code_flow=_build_auth_code_flow)  # Used in template
 
 if __name__ == "__main__":
     app.run()
