@@ -24,14 +24,14 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(AzureLogHandler(
-    connection_string='InstrumentationKey=53cb6ec7-11ad-4eb7-b29a-75d260de8cdc;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/'))
+    connection_string=os.environ.get('APPLICATIONINSIGHTS_CONNECTION_STRING')))
 
 url = URL.create(
     drivername="postgresql",
-    username='citus',
-    password='nLDP8EvM!K7ksQX',
-    host="c.sg4b6c3796be05442f855b5f0f5f9158f7.postgres.database.azure.com",
-    database='citus'
+    username=os.environ.get("DB_USERNAME"),
+    password=os.environ.get("DB_PASSWORD"),
+    host=os.environ.get("DB_HOST"),
+    database=os.environ.get("DATABASE")
 )
 
 engine = create_engine(url, echo=True)
