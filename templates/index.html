@@ -4,20 +4,26 @@
     <meta charset="UTF-8">
 </head>
 <body>
-    <h1>Microsoft Identity Python Web App</h1>
-    <h2>Welcome {{ user.get("name") }}!</h2>
+    <h2>Welcome {{ author.nickname }}!</h2>
 
-    {% if config.get("ENDPOINT") %}
-      <li><a href='/graphcall'>Call Microsoft Graph API</a></li>
-    {% endif %}
+    <a href='/test'>Create Article</a>
 
-    {% if config.get("B2C_PROFILE_AUTHORITY") %}
-      <li><a href='{{_build_auth_code_flow(authority=config["B2C_PROFILE_AUTHORITY"])["auth_uri"]}}'>Edit Profile</a></li>
-    {% endif %}
+    <table>
+        <TR>
+           <TD class="c1"><a>TITLE</a></TD>
+           <TD class="c2">AUTHOR</TD>
+        </TR>
+        {% for article in articles %}
+            <TR>
+               <TD class="c1"><a href="{{ url_for('article', id=article['Article'].id) }}">{{article['Article'].title}}</a></TD>
+               <TD class="c2">{{article['Author'].nickname}}</TD>
+            </TR>
+        {% endfor %}
+    </table>
 
     <li><a href="/logout">Logout</a></li>
     <hr>
-    <footer style="text-align: right">Powered by MSAL Python {{ version }}</footer>
+    <footer style="text-align: right">created for AŻUR training purposes</footer>
 </body>
 </html>
 

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <form action="{{ url_for('index') }}">
+        <input type="submit" value="BACK" />
+    </form>
+
+    <h1>{{article['Article'].title}}</h1>
+    <h2>{{article['Author'].nickname}}</h2>
+    <a>{{article['Article'].content}}</a>
+    <br>
+    <a>REVIEWS</a>
+     <table>
+    {% for review in reviews %}
+    <TR href='/'>
+       <TD class="c1">{{review['Review'].content}}</TD>
+       <TD class="c2">{{review['Author'].nickname}}</TD>
+    </TR>
+    {% endfor %}
+    </table>
+
+    <a>ADD REVIEW</a>
+    <form action="/article/{{ article['Article'].id }}" method="POST">
+        <label for="content">Content:</label>
+        <input type="text" id="content" name="content"><br><br>
+        <input type="submit" value="ADD REVIEW">
+    </form>
+</body>
+</html>
