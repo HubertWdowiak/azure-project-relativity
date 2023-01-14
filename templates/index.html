@@ -6,13 +6,15 @@
 <body>
     <h2>Welcome {{ author.nickname }}!</h2>
 
-    <a href='/test'>Create Article</a>
+    <li><a href='/add_article'>Create Article</a></li>
 
     <table>
+        {% if articles %}
         <TR>
            <TD class="c1"><a>TITLE</a></TD>
            <TD class="c2">AUTHOR</TD>
         </TR>
+        {% endif %}
         {% for article in articles %}
             <TR>
                <TD class="c1"><a href="{{ url_for('article', id=article['Article'].id) }}">{{article['Article'].title}}</a></TD>

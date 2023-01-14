@@ -7,9 +7,9 @@ from flask import render_template, session, request, redirect, url_for
 from opencensus.ext.azure.log_exporter import AzureLogHandler
 from sqlalchemy.dialects.postgresql import insert
 
-from src import app_config
+from setup import app_config
 from flask_session import Session
-from . import create_app, get_db_connection, Author, Article, Review, set_up_db
+from setup import create_app, get_db_connection, Author, Article, Review, set_up_db
 
 app = create_app()
 Session(app)
@@ -72,10 +72,11 @@ def article(id):
 def add_comment(id):
     sql_session.add(Review(article_id=id, author_id=session.get('user')['preferred_username'], content=request.form['content']))
     sql_session.commit()
+    logger.info(f"{get_current_author().nickname} added a review.")
     return redirect(url_for("article", id=id))
 
 
-@app.route("/test")
+@app.route("/add_article", methods=['GET'])
 def test():
     if not session.get("user"):
         return redirect(url_for("login"))
@@ -88,6 +89,7 @@ def add_article():
     user_id = session.get('user')['preferred_username']
     sql_session.add(Article(content=result['content'], title=result['title'], author_id=user_id))
     sql_session.commit()
+    logger.info(f'{get_current_author().nickname} added and article.')
     return redirect(url_for("index"))
 
 

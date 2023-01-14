@@ -6,13 +6,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.orm import relationship
-from src import app_config
+from setup import app_config
 
 Base = declarative_base()
 
 
 def create_app(app_config=app_config):
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder='../templates')
     app.config.from_object(app_config)
     return app
 

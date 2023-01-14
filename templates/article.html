@@ -11,8 +11,10 @@
     <h1>{{article['Article'].title}}</h1>
     <h2>{{article['Author'].nickname}}</h2>
     <a>{{article['Article'].content}}</a>
-    <br>
+    <br><br>
+    {% if reviews %}
     <a>REVIEWS</a>
+    {% endif %}
      <table>
     {% for review in reviews %}
     <TR href='/'>
@@ -21,7 +23,7 @@
     </TR>
     {% endfor %}
     </table>
-
+    <br><br>
     <a>ADD REVIEW</a>
     <form action="/article/{{ article['Article'].id }}" method="POST">
         <label for="content">Content:</label>
