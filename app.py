@@ -94,13 +94,13 @@ def index():
 
 
 def get_current_author():
-    author = sql_session.query(Author).filter(Author.id == session.get('user')['tid']).first()
+    author = sql_session.query(Author).filter(Author.id == session.get('user')['preferred_username']).first()
     if not author:
-        stm = insert(Author).values(id=session.get('user')['tid'], nickname=session.get('user')['name'])
+        stm = insert(Author).values(id=session.get('user')['preferred_username'], nickname=session.get('user')['name'])
         stm = stm.on_conflict_do_nothing(index_elements=['id'])
         sql_session.execute(stm)
         sql_session.commit()
-        author = sql_session.query(Author).filter(Author.id == session.get('user')['tid']).first()
+        author = sql_session.query(Author).filter(Author.id == session.get('user')['preferred_username']).first()
     return author
 
 
@@ -118,7 +118,7 @@ def article(id):
 
 @app.route("/article/<int:id>", methods=['POST'])
 def add_comment(id):
-    sql_session.add(Review(article_id=id, author_id=session.get('user')['tid'], content=request.form['content']))
+    sql_session.add(Review(article_id=id, author_id=session.get('user')['preferred_username'], content=request.form['content']))
     sql_session.commit()
     return redirect(url_for("article", id=id))
 
@@ -133,7 +133,7 @@ def test():
 @app.route("/add_article", methods=['POST'])
 def add_article():
     result = request.form
-    user_id = session.get('user')['tid']
+    user_id = session.get('user')['preferred_username']
     sql_session.add(Article(content=result['content'], title=result['title'], author_id=user_id))
     sql_session.commit()
     return redirect(url_for("index"))
