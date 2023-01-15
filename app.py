@@ -3,19 +3,15 @@ import os
 
 import jinja2
 import msal
-import requests
-from flask import Flask, render_template, session, request, redirect, url_for
+from flask import render_template, session, request, redirect, url_for
 from opencensus.ext.azure.log_exporter import AzureLogHandler
-from sqlalchemy import create_engine, ForeignKey, Column, Integer, Text
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.engine import URL
-from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 
-import app_config
+from setup import app_config
 from flask_session import Session
+from setup import create_app, get_db_connection, Author, Article, Review, set_up_db
 
-app = Flask(__name__)
-app.config.from_object(app_config)
+app = create_app()
 Session(app)
 
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -26,52 +22,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(AzureLogHandler(
     connection_string=os.environ.get('APPLICATIONINSIGHTS_CONNECTION_STRING')))
 
-url = URL.create(
-    drivername="postgresql",
-    username=os.environ.get("DB_USERNAME"),
-    password=os.environ.get("DB_PASSWORD"),
-    host=os.environ.get("DB_HOST"),
-    database=os.environ.get("DATABASE")
-)
-
-engine = create_engine(url, echo=True)
-connection = engine.connect()
-connection.execute("DROP SCHEMA public CASCADE;"
-                   "CREATE SCHEMA public;"
-                   "GRANT ALL ON SCHEMA public TO postgres;"
-                   "GRANT ALL ON SCHEMA public TO public;")
-
-Base = declarative_base()
-
-
-class Author(Base):
-    __tablename__ = "authors"
-    id = Column(Text, primary_key=True)
-    nickname = Column(Text)
-    articles = relationship("Article")
-    reviews = relationship("Review")
-
-
-class Article(Base):
-    __tablename__ = "articles"
-    id = Column(Integer, primary_key=True)
-    title = Column(Text)
-    content = Column(Text)
-    author_id = Column(Text, ForeignKey("authors.id"))
-    a_reviews = relationship("Review")
-
-
-class Review(Base):
-    __tablename__ = "reviews"
-    id = Column(Integer, primary_key=True)
-    content = Column(Text)
-    author_id = Column(Text, ForeignKey("authors.id"))
-    article_id = Column(Integer, ForeignKey("articles.id"))
-
-
-Base.metadata.create_all(engine)
-session_maker = sessionmaker(bind=engine)
-sql_session = session_maker()
+connection, engine = get_db_connection()
+sql_session = set_up_db(connection, engine)
 
 
 def _build_auth_code_flow(authority=None, scopes=None):
@@ -120,10 +72,11 @@ def article(id):
 def add_comment(id):
     sql_session.add(Review(article_id=id, author_id=session.get('user')['preferred_username'], content=request.form['content']))
     sql_session.commit()
+    logger.info(f"{get_current_author().nickname} added a review.")
     return redirect(url_for("article", id=id))
 
 
-@app.route("/test")
+@app.route("/add_article", methods=['GET'])
 def test():
     if not session.get("user"):
         return redirect(url_for("login"))
@@ -136,6 +89,7 @@ def add_article():
     user_id = session.get('user')['preferred_username']
     sql_session.add(Article(content=result['content'], title=result['title'], author_id=user_id))
     sql_session.commit()
+    logger.info(f'{get_current_author().nickname} added and article.')
     return redirect(url_for("index"))
 
 
@@ -166,19 +120,6 @@ def logout():
     return redirect(
         app_config.AUTHORITY + "/oauth2/v2.0/logout" +
         "?post_logout_redirect_uri=" + url_for("index", _external=True))
-
-
-@app.route("/graphcall")
-def graphcall():
-    token = _get_token_from_cache(app_config.SCOPE)
-    if not token:
-        return redirect(url_for("login"))
-    graph_data = requests.get(  # Use token to call downstream service
-        app_config.ENDPOINT,
-        headers={'Authorization': 'Bearer ' + token['access_token']},
-    ).json()
-    return render_template('display.html', result=graph_data)
-
 
 def _load_cache():
     cache = msal.SerializableTokenCache()
