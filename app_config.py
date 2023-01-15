@@ -10,6 +10,7 @@ CLIENT_SECRET = "lIS8Q~x9FKlFM63hQ1CbWXdZ8_dMCvO8.Y0Ancbd" # Placeholder - for u
 # if not CLIENT_SECRET:
 #     raise ValueError("Need to define CLIENT_SECRET environment variable")
 
+
 AUTHORITY = "https://login.microsoftonline.com/02b063b5-c529-4148-824c-4db8b3d36d2c"  # For multi-tenant app
 REDIRECT_PATH = "/getAToken"
 ENDPOINT = 'https://graph.microsoft.com/v1.0/users'  # This resource requires no admin consent
