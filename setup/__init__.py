@@ -32,9 +32,7 @@ def get_db_connection(url=url):
 
 
 def set_up_db(connection, engine):
-    connection.execute("DROP SCHEMA public CASCADE;"
-                       "CREATE SCHEMA public;"
-                       "GRANT ALL ON SCHEMA public TO postgres;"
+    connection.execute("GRANT ALL ON SCHEMA public TO postgres;"
                        "GRANT ALL ON SCHEMA public TO public;")
 
     Base.metadata.create_all(engine)
